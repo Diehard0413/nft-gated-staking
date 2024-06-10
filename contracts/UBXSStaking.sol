@@ -2,13 +2,14 @@
 pragma solidity ^0.8.20;
 
 import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
+import "@chainlink/contracts/src/v0.8/shared/access/ConfirmedOwner.sol";
+import "@chainlink/contracts/src/v0.8/shared/interfaces/LinkTokenInterface.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./libraries/SafeMath.sol";
 
-contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
+contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
     using Chainlink for Chainlink.Request;
     using SafeMath for uint256;
     using Strings for uint256;
@@ -39,7 +40,7 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
     event MaticWithdrawn(address indexed admin, uint256 amount);
     event UBXSToppedUp(address indexed admin, uint256 amount);
 
-    constructor(
+    constructor (
         address _ubxsToken,
         address _oracle,
         string memory _jobId,
@@ -47,7 +48,7 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
         string memory _apiUrl,
         uint256 _maxMaticDeposit,
         address _linkTokenAddress
-    ) ERC721("StakedMaticNFT", "sMATIC") Ownable(msg.sender) {
+    ) ERC721("StakedMaticNFT", "sMATIC") ConfirmedOwner(msg.sender) {
         ubxsToken = IERC20(_ubxsToken);
         oracle = _oracle;
         jobId = stringToBytes32(_jobId);
@@ -119,6 +120,14 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
         uint256 balance = address(this).balance;
         payable(owner()).transfer(balance);
         emit MaticWithdrawn(msg.sender, balance);
+    }
+
+    function withdrawLink() external onlyOwner {
+        LinkTokenInterface link = LinkTokenInterface(linkTokenAddress);
+        require(
+            link.transfer(msg.sender, link.balanceOf(address(this))),
+            "Unable to transfer"
+        );
     }
 
     function topUpUBXS(uint256 amount) external onlyOwner {
