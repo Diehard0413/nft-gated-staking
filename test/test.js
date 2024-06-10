@@ -1,5 +1,5 @@
 const UBXSToken = artifacts.require("UBXSToken");
-const StakingContract = artifacts.require("StakingContract");
+const UBXSStaking = artifacts.require("UBXSStaking");
 
 contract('test for all', async accounts => {
     let token;
@@ -7,12 +7,12 @@ contract('test for all', async accounts => {
 
     before(async () => {
         token = await UBXSToken.deployed();
-        // stakingContract = await StakingContract.deployed();
+        // stakingContract = await UBXSStaking.deployed();
 
         console.log(accounts);
 
         console.log("Token: ", token.address);
-        // console.log("StakingContract: ", stakingContract.address);
+        // console.log("UBXSStaking: ", stakingContract.address);
     })
 
     it('distribution of token', async () => {

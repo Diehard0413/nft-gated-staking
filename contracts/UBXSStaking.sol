@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.19;
+pragma solidity ^0.8.20;
 
 import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/Strings.sol";
+import "./libraries/SafeMath.sol";
 
 contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
     using Chainlink for Chainlink.Request;
+    using SafeMath for uint256;
+    using Strings for uint256;
 
     IERC20 public ubxsToken;
     uint256 public totalUBXS;
@@ -19,6 +23,7 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
     bytes32 public jobId;
     uint256 public fee;
     string public apiUrl;
+    address public linkTokenAddress;
 
     struct Stake {
         address staker;
@@ -40,15 +45,17 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
         string memory _jobId,
         uint256 _fee,
         string memory _apiUrl,
-        uint256 _maxMaticDeposit
-    ) ERC721("StakedMaticNFT", "sMATIC") {
+        uint256 _maxMaticDeposit,
+        address _linkTokenAddress
+    ) ERC721("StakedMaticNFT", "sMATIC") Ownable(msg.sender) {
         ubxsToken = IERC20(_ubxsToken);
         oracle = _oracle;
         jobId = stringToBytes32(_jobId);
         fee = _fee;
         apiUrl = _apiUrl;
         maxMaticDeposit = _maxMaticDeposit;
-        setChainlinkToken(LINK);
+        linkTokenAddress = _linkTokenAddress;
+        _setChainlinkToken(_linkTokenAddress);
     }
 
     function depositMatic() external payable {
@@ -73,14 +80,14 @@ contract UBXSStaking is ChainlinkClient, ERC721, Ownable {
     }
 
     function requestUBXSPrice(uint256 nftId, uint256 maticAmount) internal {
-        Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
-        req.add("get", apiUrl);
-        req.add("path", "data.price");
-        req.addInt("times", 10**18);
-        req.add("sender", Strings.toString(uint256(uint160(msg.sender))));
-        req.add("maticAmount", Strings.toString(maticAmount));
-        req.add("nftId", Strings.toString(nftId));
-        sendChainlinkRequestTo(oracle, req, fee);
+        Chainlink.Request memory req = _buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
+        req._add("get", apiUrl);
+        req._add("path", "data.price");
+        req._addInt("times", 10**18);
+        req._add("sender", uint256(uint160(msg.sender)).toString());
+        req._add("maticAmount", maticAmount.toString());
+        req._add("nftId", nftId.toString());
+        _sendChainlinkRequestTo(oracle, req, fee);
     }
 
     function fulfill(bytes32 _requestId, uint256 ubxsPrice, address user, uint256 maticAmount, uint256 nftId) public recordChainlinkFulfillment(_requestId) {
