@@ -59,7 +59,7 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
         _setChainlinkToken(_linkTokenAddress);
     }
 
-    function depositMatic() external payable {
+    function depositMatic(string calldata pathURL) external payable {
         require(msg.value > 0, "Must deposit Matic");
         require(address(this).balance <= maxMaticDeposit, "Max Matic deposit limit reached");
 
@@ -76,14 +76,14 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
 
         stakes[nftId] = newStake;
 
-        requestUBXSPrice(nftId, msg.value);
+        requestUBXSPrice(nftId, msg.value, pathURL);
         emit MaticDeposited(msg.sender, msg.value, nftId);
     }
 
-    function requestUBXSPrice(uint256 nftId, uint256 maticAmount) internal {
+    function requestUBXSPrice(uint256 nftId, uint256 maticAmount, string calldata pathURL) internal {
         Chainlink.Request memory req = _buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
         req._add("get", apiUrl);
-        req._add("path", "data.price");
+        req._add("path", pathURL);
         req._addInt("times", 10**18);
         req._add("sender", uint256(uint160(msg.sender)).toString());
         req._add("maticAmount", maticAmount.toString());
