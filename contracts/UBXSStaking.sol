@@ -80,14 +80,10 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
         emit MaticDeposited(msg.sender, msg.value, nftId);
     }
 
-    function requestUBXSPrice(uint256 nftId, uint256 maticAmount, string calldata pathURL) internal {
+    function requestUBXSPrice(string calldata apiUrl, string calldata pathUrl) internal {
         Chainlink.Request memory req = _buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
         req._add("get", apiUrl);
-        req._add("path", pathURL);
-        req._addInt("times", 10**18);
-        req._add("sender", uint256(uint160(msg.sender)).toString());
-        req._add("maticAmount", maticAmount.toString());
-        req._add("nftId", nftId.toString());
+        req._add("path", pathUrl);
         _sendChainlinkRequestTo(oracle, req, fee);
     }
 
