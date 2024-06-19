@@ -16,7 +16,6 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
 
     IERC20 public ubxsToken;
     uint256 public totalUBXS;
-    uint256 public neededUBXS;
     uint256 public discountAmount = 100;
     uint256 public maxMaticDeposit;
     uint256 public nftCounter;
@@ -27,17 +26,19 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
     address public linkTokenAddress;
 
     struct Stake {
-        address staker;
+        uint256 nftId;
         uint256 maticAmount;
         uint256 claimableUBXS;
         uint256 stakeTime;
     }
 
-    mapping(uint256 => Stake) public stakes;
+    mapping(address => Stake) public stakes;
 
     event MaticDeposited(address indexed user, uint256 amount, uint256 nftId);
-    event UBXSWithdrawn(address indexed user, uint256 amount);
     event MaticWithdrawn(address indexed admin, uint256 amount);
+    event LinkRescued(address indexed user, uint256 amount);
+    event UBXSRescued(address indexed user, uint256 amount);
+    event UBXSWithdrawn(address indexed user, uint256 amount);    
     event UBXSToppedUp(address indexed admin, uint256 amount);
 
     constructor (
@@ -60,6 +61,7 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
     }
 
     function depositMatic(string calldata pathUrl) external payable {
+        require(stakes[msg.sender].stakeTime > 0, "Already deposited user");
         require(msg.value > 0, "Must deposit Matic");
         require(address(this).balance <= maxMaticDeposit, "Max Matic deposit limit reached");
 
@@ -68,15 +70,16 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
         nftCounter++;
 
         Stake memory newStake = Stake({
-            staker: msg.sender,
+            nftId: nftId,
             maticAmount: msg.value,
             claimableUBXS: 0,
             stakeTime: block.timestamp
         });
 
-        stakes[nftId] = newStake;
+        stakes[msg.sender] = newStake;
 
         requestUBXSPrice(pathUrl);
+
         emit MaticDeposited(msg.sender, msg.value, nftId);
     }
 
@@ -87,19 +90,18 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
         _sendChainlinkRequestTo(oracle, req, fee);
     }
 
-    function fulfill(bytes32 _requestId, uint256 ubxsPrice, address user, uint256 maticAmount, uint256 nftId) public recordChainlinkFulfillment(_requestId) {
-        Stake storage stake = stakes[nftId];
-        require(stake.staker == user, "Stake not found or invalid");
+    function fulfill(bytes32 _requestId, uint256 ubxsPrice, address user, uint256 maticAmount) public recordChainlinkFulfillment(_requestId) {
+        Stake storage stake = stakes[user];
+        require(stake.stakeTime > 0, "Stake not found or invalid");
 
         uint256 claimableUBXS = maticAmount.mul(ubxsPrice).mul(1000 + discountAmount).div(1000).div(10**18);
         stake.claimableUBXS = claimableUBXS;
         totalUBXS += claimableUBXS;
-        neededUBXS += claimableUBXS;
     }
 
-    function withdrawUBXS(uint256 nftId) external {
-        Stake storage stake = stakes[nftId];
-        require(stake.staker == msg.sender, "Not the staker");
+    function withdrawUBXS() external {
+        Stake storage stake = stakes[msg.sender];
+        require(stake.stakeTime > 0, "Stake not found or invalid");
         require(block.timestamp >= stake.stakeTime + 30 days, "Cannot withdraw before 30 days");
 
         uint256 claimableUBXS = stake.claimableUBXS;
@@ -115,20 +117,28 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
     function withdrawMatic() external onlyOwner {
         uint256 balance = address(this).balance;
         payable(owner()).transfer(balance);
+
         emit MaticWithdrawn(msg.sender, balance);
     }
 
-    function withdrawLink() external onlyOwner {
+    function rescueUBXS() external onlyOwner {
+        uint256 balance = ubxsToken.balanceOf(address(this));
+        require(ubxsToken.transfer(msg.sender, balance), "Unable to transfer");
+
+        emit UBXSRescued(msg.sender, balance);
+    }
+
+    function rescueLink() external onlyOwner {
         LinkTokenInterface link = LinkTokenInterface(linkTokenAddress);
-        require(
-            link.transfer(msg.sender, link.balanceOf(address(this))),
-            "Unable to transfer"
-        );
+        uint256 balance = link.balanceOf(address(this));
+        require(link.transfer(msg.sender, balance), "Unable to transfer");
+
+        emit LinkRescued(msg.sender, balance);
     }
 
     function topUpUBXS(uint256 amount) external onlyOwner {
         ubxsToken.transferFrom(msg.sender, address(this), amount);
-        neededUBXS = 0;
+
         emit UBXSToppedUp(msg.sender, amount);
     }
 
