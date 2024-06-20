@@ -150,10 +150,6 @@ contract UBXSStaking is ChainlinkClient, ERC721, ConfirmedOwner {
         discountAmount = _discountAmount;
     }
 
-    function setOracle(address _oracle) external onlyOwner {
-        oracle = _oracle;
-    }
-
     function setJobId(string memory _jobId) external onlyOwner {
         jobId = stringToBytes32(_jobId);
     }
